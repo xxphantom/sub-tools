@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>SRT → Чистый текст (объединить предложения)</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:Arial, sans-serif;margin:0;padding:20px;display:flex;gap:24px}
+    section{flex:1;display:flex;flex-direction:column}
+    h2{margin:0 0 12px;font-size:20px}
+    label{margin-top:12px;font-weight:600}
+    textarea{width:100%;height:300px;resize:vertical;margin-top:4px;padding:8px}
+    button{margin-top:12px;padding:8px 14px;font-size:14px;cursor:pointer}
+  </style>
+</head>
+<body>
+
+<section>
+  <h2>Вставьте SRT</h2>
+  <label for="inputSrt">Субтитры (SRT)</label>
+  <textarea id="inputSrt" placeholder="Вставьте исходные субтитры"></textarea>
+
+  <button id="convertBtn">Преобразовать →</button>
+
+  <label for="outputPlain">Результат (чистый текст)</label>
+  <textarea id="outputPlain" readonly></textarea>
+</section>
+
+<script>
+function srtToPlain(raw){
+  // 1. убрать номера блоков
+  let txt = raw.replace(/^\d+\s*[\r\n]+/gm,'');
+  // 2. убрать строки таймкодов
+  txt = txt.replace(/^\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}.*(\r?\n)?/gm,'');
+  // 3. удалить HTML-теги
+  txt = txt.replace(/<[^>]+>/g,'');
+  // 4. переводы строк → пробел
+  txt = txt.replace(/\r?\n+/g,' ');
+  // 5. лишние пробелы в один
+  return txt.replace(/\s+/g,' ').trim();
+}
+
+document.getElementById('convertBtn').addEventListener('click',()=>{
+  const raw = document.getElementById('inputSrt').value;
+  const plain = srtToPlain(raw);
+  const out = document.getElementById('outputPlain');
+  out.value = plain;
+  out.focus();
+  out.select();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Subtitle Tool — номера + тайминги ↔ текст</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:Arial, sans-serif;margin:0;padding:20px;display:flex;gap:24px}
+    section{flex:1;display:flex;flex-direction:column}
+    h2{margin:0 0 12px;font-size:20px}
+    label{margin-top:12px;font-weight:600}
+    textarea{width:100%;height:300px;resize:vertical;margin-top:4px;padding:8px}
+    button{margin-top:12px;padding:8px 14px;font-size:14px;cursor:pointer}
+    #error{color:crimson;margin-top:8px}
+  </style>
+</head>
+<body>
+
+<!-- ============  ФУНКЦИЯ 1  ============ -->
+<section id="strip">
+  <h2>Функция 1 — убрать тайминги</h2>
+
+  <label for="inputSrt">Субтитры (SRT)</label>
+  <textarea id="inputSrt" placeholder="Вставьте оригинальный .srt"></textarea>
+
+  <button id="stripBtn">Удалить тайминги →</button>
+
+  <label for="outputText">Результат (номер + текст)</label>
+  <textarea id="outputText" readonly></textarea>
+</section>
+
+<!-- ============  ФУНКЦИЯ 2  ============ -->
+<section id="merge">
+  <h2>Функция 2 — добавить тайминги</h2>
+
+  <label for="inputPlain">Субтитры без таймингов</label>
+  <textarea id="inputPlain"
+            placeholder="Каждый блок начинается с номера, затем любые строки текста (включая пустые) до следующего номера"></textarea>
+
+  <button id="mergeBtn">Добавить тайминги →</button>
+
+  <label for="outputSrt">Результат (SRT)</label>
+  <textarea id="outputSrt" readonly></textarea>
+  <div id="error"></div>
+</section>
+
+<script>
+/* Массив оригинальных блоков: { num, timing, text } */
+let storedBlocks = [];
+
+/* ---------- Разбор исходного SRT (Ф-ция 1) ---------- */
+function parseSrtBlocks(raw){
+  return raw.trim()
+    .split(/\r?\n\r?\n/)        // пустая строка = новый блок
+    .map(b=>{
+      const lines=b.split(/\r?\n/);
+      if(lines.length<3) return null;
+      return{
+        num:    lines[0].trim(),
+        timing: lines[1].trim(),
+        text:   lines.slice(2).join('\n').trim()   // теги остаются
+      };
+    })
+    .filter(Boolean);
+}
+
+/* ---------- Разбор пользовательского текста (новый алгоритм) ---------- */
+function parseTypedBlocks(raw){
+  const lines = raw.split(/\r?\n/);
+  const blocks = [];
+  let current = null;
+
+  lines.forEach(line=>{
+    const trimmed = line.trim();
+
+    /* Начало нового блока — чистый номер */
+    if(/^\d+$/.test(trimmed)){
+      if(current) blocks.push(current);
+      current = { num: trimmed, textLines: [] };
+      return;
+    }
+
+    if(current){
+      /* игнорируем полностью пустые строки */
+      if(trimmed!==''){
+        current.textLines.push(trimmed);
+      }
+    }
+  });
+
+  if(current) blocks.push(current);
+
+  /* Собираем текст блока, сохраняя переводы строк */
+  return blocks.map(b=>({
+    num:  b.num,
+    text: b.textLines.join('\n').trim() || '​'     // zero-width NBSP во избежание пустых
+  }));
+}
+
+/* ---------- ФУНКЦИЯ 1 ---------- */
+document.getElementById('stripBtn').addEventListener('click',()=>{
+  const raw = document.getElementById('inputSrt').value;
+  if(!raw.trim()) return;
+
+  storedBlocks = parseSrtBlocks(raw);
+  if(!storedBlocks.length){
+    alert('Не удалось найти блоки субтитров.');
+    return;
+  }
+
+  /* Вывод: номер ↵ текст, пустая строка между блоками */
+  document.getElementById('outputText').value =
+    storedBlocks.map(b=>`${b.num}\n${b.text}`).join('\n\n');
+});
+
+/* ---------- ФУНКЦИЯ 2 ---------- */
+document.getElementById('mergeBtn').addEventListener('click',()=>{
+  const rawUser = document.getElementById('inputPlain').value.trim();
+  const errorEl = document.getElementById('error');
+
+  if(!storedBlocks.length){
+    errorEl.textContent='Сначала выполните функцию 1, чтобы сохранить тайминги.';
+    return;
+  }
+
+  const typedBlocks = parseTypedBlocks(rawUser);
+
+  if(typedBlocks.length!==storedBlocks.length){
+    errorEl.textContent=
+      `Несовпадение: блоков текста ${typedBlocks.length}, таймингов ${storedBlocks.length}.`;
+    return;
+  }
+  errorEl.textContent='';
+
+  /* Сборка финального SRT */
+  const srt = typedBlocks.map((b,idx)=>
+    `${b.num}\n${storedBlocks[idx].timing}\n${b.text}\n`
+  ).join('\n');
+
+  document.getElementById('outputSrt').value = srt;
+});
+</script>
+</body>
+</html>
